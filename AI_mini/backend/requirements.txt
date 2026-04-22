@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+google-genai
+python-multipart
+sqlalchemy
+pydantic
+python-dotenv
