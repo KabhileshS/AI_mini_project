@@ -64,6 +64,18 @@ st.divider()
 
 # Summary Section
 st.header("3. Spending Summary")
+if st.button("Generate AI Insights"):
+    with st.spinner("Analyzing your finances..."):
+        # We send the current session_state data (if any) to get the "Current Upload" insight
+        current_payload = st.session_state.extracted_data if st.session_state.extracted_data else None
+        
+        summary_res = requests.post(f"{BACKEND_URL}/summary", json=current_payload)
+        
+        if summary_res.status_code == 200:
+            # Displays both summaries as returned by the LLM
+            st.info(summary_res.json()["summary"])
+        else:
+            st.error("Could not generate insights.")
 try:
     expenses_res = requests.get(f"{BACKEND_URL}/expenses/")
     if expenses_res.status_code == 200:

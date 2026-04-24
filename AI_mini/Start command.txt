@@ -4,3 +4,6 @@ uvicorn main:app --reload
 
 cd frontend
 streamlit run app.py
+
+cd client
+npm run dev

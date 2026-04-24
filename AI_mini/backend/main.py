@@ -1,7 +1,9 @@
-from fastapi import FastAPI, Depends, UploadFile, File, HTTPException
+from fastapi import FastAPI, Depends, UploadFile, File, HTTPException, Body
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from dotenv import load_dotenv
+import json
 
 # Load env variables
 load_dotenv()
@@ -11,6 +13,14 @@ import models, schemas, database, gemini_service
 models.Base.metadata.create_all(bind=database.engine)
 
 app = FastAPI(title="Expense Tracker API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.post("/upload", response_model=List[schemas.ExpenseExtraction])
 async def upload_file(file: UploadFile = File(...)):
@@ -64,7 +74,6 @@ def chat_endpoint(chat: schemas.ChatMessage, db: Session = Depends(database.get_
         }
         for e in expenses
     ]
-    import json
     expenses_json = json.dumps(expenses_data)
     
     try:
@@ -72,3 +81,26 @@ def chat_endpoint(chat: schemas.ChatMessage, db: Session = Depends(database.get_
         return {"reply": reply}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Gemini API Error: {str(e)}")
+
+
+# Update in AI_mini/backend/main.py
+
+@app.post("/summary") # Changed to POST to accept current data
+async def get_dual_summary(current_data: Optional[List[schemas.ExpenseExtraction]] = Body(default=None), db: Session = Depends(database.get_db)):
+    # 1. Fetch historical data from DB
+    all_expenses = db.query(models.Expense).all()
+    
+    historical_json = json.dumps([
+        {"date": str(e.date), "merchant": e.merchant, "total": e.total, "category": e.category}
+        for e in all_expenses
+    ]) if all_expenses else "[]"
+    
+    # 2. Format current data
+    current_json = json.dumps([item.model_dump() for item in current_data]) if current_data else "null"
+    
+    # 3. Generate the combined insights
+    try:
+        summary_text = gemini_service.generate_dual_summary(current_json, historical_json)
+        return {"summary": summary_text}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Analysis Error: {str(e)}")
